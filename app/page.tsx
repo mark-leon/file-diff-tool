@@ -1,103 +1,283 @@
-import Image from "next/image";
+"use client";
 
-export default function Home() {
+import { useEffect, useState } from "react";
+import { ArrowLeftRight } from "lucide-react";
+import * as DiffMatchPatch from "diff-match-patch";
+import { Card } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Toggle } from "@/components/ui/toggle";
+import { useToast } from "@/hooks/use-toast";
+import { FileUploader } from "./file-uploader";
+import { MonacoEditor } from "./monaco-editor";
+
+export default function FileDiffPage() {
+  const [file1Content, setFile1Content] = useState<string>("");
+  const [file2Content, setFile2Content] = useState<string>("");
+  const [file1Name, setFile1Name] = useState<string>("");
+  const [file2Name, setFile2Name] = useState<string>("");
+  const [diffView, setDiffView] = useState<"split" | "unified">("split");
+  const [diffResult, setDiffResult] = useState<any[]>([]);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const { toast } = useToast();
+
+  // Debounced diff calculation
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (file1Content && file2Content) {
+        calculateDiff();
+      }
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [file1Content, file2Content]);
+
+  const calculateDiff = () => {
+    setIsProcessing(true);
+
+    // Use a setTimeout to prevent UI blocking for large files
+    setTimeout(() => {
+      try {
+        const dmp = new DiffMatchPatch.diff_match_patch();
+        const diff = dmp.diff_main(file1Content, file2Content);
+        dmp.diff_cleanupSemantic(diff);
+        setDiffResult(diff);
+      } catch (error) {
+        toast({
+          title: "Error calculating diff",
+          description:
+            "There was an error comparing the files. Please try again with smaller files.",
+          variant: "destructive",
+        });
+      } finally {
+        setIsProcessing(false);
+      }
+    }, 0);
+  };
+
+  const handleFile1Upload = (content: string, name: string) => {
+    setFile1Content(content);
+    setFile1Name(name);
+  };
+
+  const handleFile2Upload = (content: string, name: string) => {
+    setFile2Content(content);
+    setFile2Name(name);
+  };
+
+  const toggleDiffView = () => {
+    setDiffView(diffView === "split" ? "unified" : "split");
+  };
+
   return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm/6 text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-[family-name:var(--font-geist-mono)] font-semibold">
-              app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
+    <div className="container mx-auto py-6 space-y-6">
+      <div className="flex flex-col space-y-2">
+        <h1 className="text-3xl font-bold">File Diff Tool</h1>
+        <p className="text-muted-foreground">
+          Upload two text files to see the differences between them.
+        </p>
+      </div>
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <FileUploader onFileLoaded={handleFile1Upload} label="First File" />
+        <FileUploader onFileLoaded={handleFile2Upload} label="Second File" />
+      </div>
+
+      {(file1Content || file2Content) && (
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-2">
+            <Toggle
+              pressed={diffView === "unified"}
+              onPressedChange={toggleDiffView}
+              aria-label="Toggle diff view"
+            >
+              <ArrowLeftRight className="h-4 w-4 mr-2" />
+              {diffView === "split"
+                ? "Switch to Unified View"
+                : "Switch to Split View"}
+            </Toggle>
+          </div>
+          <div className="text-sm text-muted-foreground">
+            {isProcessing ? "Processing..." : ""}
+          </div>
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
+      )}
+
+      {file1Content && file2Content && (
+        <Tabs defaultValue="diff" className="w-full">
+          <TabsList>
+            <TabsTrigger value="diff">Diff View</TabsTrigger>
+            <TabsTrigger value="original">Original Files</TabsTrigger>
+          </TabsList>
+          <TabsContent value="diff" className="mt-4">
+            <DiffViewer
+              diffResult={diffResult}
+              viewMode={diffView}
+              file1Name={file1Name}
+              file2Name={file2Name}
+              isProcessing={isProcessing}
+            />
+          </TabsContent>
+          <TabsContent value="original" className="mt-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <Card className="p-4">
+                <h3 className="font-medium mb-2">{file1Name || "File 1"}</h3>
+                <MonacoEditor
+                  value={file1Content}
+                  onChange={(value) => setFile1Content(value || "")}
+                  language="plaintext"
+                  height="400px"
+                />
+              </Card>
+              <Card className="p-4">
+                <h3 className="font-medium mb-2">{file2Name || "File 2"}</h3>
+                <MonacoEditor
+                  value={file2Content}
+                  onChange={(value) => setFile2Content(value || "")}
+                  language="plaintext"
+                  height="400px"
+                />
+              </Card>
+            </div>
+          </TabsContent>
+        </Tabs>
+      )}
+    </div>
+  );
+}
+
+interface DiffViewerProps {
+  diffResult: any[];
+  viewMode: "split" | "unified";
+  file1Name: string;
+  file2Name: string;
+  isProcessing: boolean;
+}
+
+function DiffViewer({
+  diffResult,
+  viewMode,
+  file1Name,
+  file2Name,
+  isProcessing,
+}: DiffViewerProps) {
+  if (isProcessing) {
+    return (
+      <div className="flex items-center justify-center h-96 border rounded-lg">
+        <p className="text-muted-foreground">Calculating differences...</p>
+      </div>
+    );
+  }
+
+  if (diffResult.length === 0) {
+    return (
+      <div className="flex items-center justify-center h-96 border rounded-lg">
+        <p className="text-muted-foreground">
+          No differences found or still processing...
+        </p>
+      </div>
+    );
+  }
+
+  if (viewMode === "unified") {
+    return <UnifiedDiffView diffResult={diffResult} />;
+  }
+
+  return (
+    <SplitDiffView
+      diffResult={diffResult}
+      file1Name={file1Name}
+      file2Name={file2Name}
+    />
+  );
+}
+
+function UnifiedDiffView({ diffResult }: { diffResult: any[] }) {
+  return (
+    <Card className="p-4 overflow-auto">
+      <pre className="text-sm font-mono whitespace-pre-wrap">
+        {diffResult.map((part, index) => {
+          const [type, text] = part;
+          const className =
+            type === -1
+              ? "bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300"
+              : type === 1
+              ? "bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300"
+              : "";
+
+          return (
+            <span key={index} className={className}>
+              {text}
+            </span>
+          );
+        })}
+      </pre>
+    </Card>
+  );
+}
+
+function SplitDiffView({
+  diffResult,
+  file1Name,
+  file2Name,
+}: {
+  diffResult: any[];
+  file1Name: string;
+  file2Name: string;
+}) {
+  // Process diff result into left and right content
+  const left: { text: string; type: number }[] = [];
+  const right: { text: string; type: number }[] = [];
+
+  diffResult.forEach(([type, text]) => {
+    if (type === -1) {
+      // Removed from file1
+      left.push({ text, type });
+    } else if (type === 1) {
+      // Added in file2
+      right.push({ text, type });
+    } else {
+      // Unchanged
+      left.push({ text, type });
+      right.push({ text, type });
+    }
+  });
+
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <Card className="p-4 overflow-auto">
+        <h3 className="font-medium mb-2">{file1Name || "File 1"}</h3>
+        <pre className="text-sm font-mono whitespace-pre-wrap">
+          {left.map((part, index) => {
+            const className =
+              part.type === -1
+                ? "bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300"
+                : "";
+
+            return (
+              <span key={index} className={className}>
+                {part.text}
+              </span>
+            );
+          })}
+        </pre>
+      </Card>
+      <Card className="p-4 overflow-auto">
+        <h3 className="font-medium mb-2">{file2Name || "File 2"}</h3>
+        <pre className="text-sm font-mono whitespace-pre-wrap">
+          {right.map((part, index) => {
+            const className =
+              part.type === 1
+                ? "bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300"
+                : "";
+
+            return (
+              <span key={index} className={className}>
+                {part.text}
+              </span>
+            );
+          })}
+        </pre>
+      </Card>
     </div>
   );
 }
